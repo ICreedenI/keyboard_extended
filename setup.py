@@ -30,7 +30,7 @@ DESCRIPTION = "Extension for the keyboard package"
 # Setting up
 setup(
     name="keyboard_extended",
-    version=versioneer.get_version(),
+    version="0.0.2",
     cmdclass=versioneer.get_cmdclass(),
     author="André Herber",
     author_email="andre.herber.programming@gmail.com",
