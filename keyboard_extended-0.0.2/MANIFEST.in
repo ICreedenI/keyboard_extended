@@ -1,0 +1,6 @@
+include README.md
+include LICENSE
+graft keyboard_extended
+recursive-exclude * *.py[co]
+include versioneer.py
+include keyboard_extended/_version.py
