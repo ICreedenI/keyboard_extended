@@ -1,0 +1,11 @@
+LICENSE
+MANIFEST.in
+README.md
+setup.py
+keyboard_extended/KeyboardClass.py
+keyboard_extended/__init__.py
+keyboard_extended.egg-info/PKG-INFO
+keyboard_extended.egg-info/SOURCES.txt
+keyboard_extended.egg-info/dependency_links.txt
+keyboard_extended.egg-info/requires.txt
+keyboard_extended.egg-info/top_level.txt

@@ -16,7 +16,6 @@
 # twine upload --verbose dist/*
 
 from setuptools import setup, find_packages
-import versioneer
 import codecs
 import os
 
@@ -31,7 +30,6 @@ DESCRIPTION = "Extension for the keyboard package"
 setup(
     name="keyboard_extended",
     version="0.0.2",
-    cmdclass=versioneer.get_cmdclass(),
     author="André Herber",
     author_email="andre.herber.programming@gmail.com",
     description=DESCRIPTION,

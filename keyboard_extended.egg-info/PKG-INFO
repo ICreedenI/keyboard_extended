@@ -1,0 +1,27 @@
+Metadata-Version: 2.1
+Name: keyboard-extended
+Version: 0.0.2
+Summary: Extension for the keyboard package
+Author: André Herber
+Author-email: andre.herber.programming@gmail.com
+Keywords: python
+Classifier: Development Status :: 1 - Planning
+Classifier: Intended Audience :: Developers
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: Microsoft :: Windows
+Description-Content-Type: text/markdown
+License-File: LICENSE
+
+
+# keyboard_extended
+Extension for the keyboard package
+
+Class:
+- Key
+Funcitons:
+- getKey  
+  use this instead of creating a new instance to avoid deleting bindings
+- unbind_all_hotkeys
