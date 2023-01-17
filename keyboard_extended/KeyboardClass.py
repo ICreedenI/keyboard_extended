@@ -526,18 +526,20 @@ class Key:
         callback: Callable,
         args: Iterable = None,
         send_self: bool = False,
-        time_delta: float = 0.25,
+        max_time_delta: float = 0.25,
+        min_time_delta: float = 0.1,
     ):
         def check_double_press(
             self,
             callback: Callable,
             args: Iterable = None,
             send_self: bool = False,
-            time_delta: float = 0.25,
+            max_time_delta: float = 0.25,
+            min_time_delta: float = 0.05,
         ):
             try:
                 delta = time() - self.last_2000[-1].time
-                if delta < time_delta:
+                if min_time_delta < delta < max_time_delta:
                     if send_self:
                         if args == None:
                             callback(self)
@@ -552,7 +554,8 @@ class Key:
                 pass
 
         return self.bind(
-            check_double_press, [self, callback, args, send_self, time_delta]
+            check_double_press,
+            [self, callback, args, send_self, max_time_delta, min_time_delta],
         )
 
 
@@ -861,7 +864,7 @@ if __name__ == "__main__":
             varp(time() - key.last_2000[-1].time)
         except:
             pass
-        ctrl.unbind(idendtification=ide)
+        # ctrl.unbind(idendtification=ide)
 
     ctrl = getKey("ctrl")
     ide = ctrl.bind_double_press(info_callback, send_self=True)
