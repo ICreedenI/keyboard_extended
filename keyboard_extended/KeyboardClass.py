@@ -2,6 +2,7 @@ from queue import Queue
 from threading import Thread
 from time import sleep, time
 from typing import Callable, Iterable
+from random import randrange
 
 from keyboard import *
 
@@ -255,7 +256,7 @@ class Key:
 
         self._state = value
         if value == "up":
-            for c, args, send_self in self._callbacks_up:
+            for c, args, send_self, idendtification in self._callbacks_up:
                 if send_self:
                     if args != None:
                         c(self, *args)
@@ -267,7 +268,7 @@ class Key:
                     else:
                         c()
         elif value == "down":
-            for c, args, send_self in self._callbacks_down:
+            for c, args, send_self, idendtification in self._callbacks_down:
                 if send_self:
                     if args != None:
                         c(self, *args)
@@ -287,57 +288,90 @@ class Key:
         send_self: bool = False,
     ):
         """
-        callback should be a function
+        callback should be a function; returns idendtification
         """
+        idendtification = time() + randrange(100)
         if state == "up":
-            self._callbacks_up.append((callback, args, send_self))
+            self._callbacks_up.append((callback, args, send_self, idendtification))
         elif state == "down":
-            self._callbacks_down.append((callback, args, send_self))
+            self._callbacks_down.append((callback, args, send_self, idendtification))
         else:
             raise ValueError
+        return idendtification
 
-    def unbind(self, callback: Callable, state: str = "down"):
-        to_remove = []
+    def unbind(
+        self,
+        callback: Callable = None,
+        state: str = "down",
+        idendtification: float = None,
+    ):
+        if callback == None and idendtification == None:
+            raise ValueError("callback and idendtification are None")
+        # to_remove = []
         if state == "up":
-            for (callback_, args, send_self) in self._callbacks_up:
-                if callback == callback_:
-                    to_remove.append((callback, args, send_self))
-            for n in to_remove:
-                self._callbacks_up.remove(n)
+            to_remove_indices_up = []
+            for index, (
+                callback_,
+                args,
+                send_self,
+                idendtification_,
+            ) in enumerate(self._callbacks_up):
+                if callback == callback_ or idendtification == idendtification_:
+                    # to_remove.append((callback, args, send_self, idendtification))
+                    to_remove_indices_up.append(index)
+            # for n in to_remove:
+            #     self._callbacks_up.remove(n)
+            for n in to_remove_indices_up[::-1]:
+                self._callbacks_up.pop(n)
         elif state == "down":
-            for (callback_, args, send_self) in self._callbacks_down:
-                if callback == callback_:
-                    to_remove.append((callback, args, send_self))
-            for n in to_remove:
-                self._callbacks_down.remove(n)
+            to_remove_indices_down = []
+            for index, (
+                callback_,
+                args,
+                send_self,
+                idendtification_,
+            ) in enumerate(self._callbacks_down):
+                varp(
+                    idendtification == idendtification_,
+                    idendtification,
+                    idendtification_,
+                    self._callbacks_down,
+                )
+                if callback == callback_ or idendtification == idendtification_:
+                    # to_remove.append((callback, args, send_self, idendtification))
+                    to_remove_indices_down.append(index)
+            # for n in to_remove:
+            #     self._callbacks_down.remove(n)
+            for n in to_remove_indices_down[::-1]:
+                self._callbacks_down.pop(n)
         else:
-            raise ValueError
+            raise ValueError("state must be 'up' or 'down'")
 
         try:
             for keyname in Key.aliase[self._name]:
                 key = Key.name_self_dict[keyname]
-                key.unbind(callback, state)
-                for f, cs in self._alias_bound_timed_functions.items():
-                    try:
-                        if callback == f:
-                            try:
-                                key.unbind(cs[0], "down")
-                            except:
-                                pass
-                            try:
-                                key.unbind(cs[1], "down")
-                            except:
-                                pass
-                            try:
-                                key.unbind(cs[0], "up")
-                            except:
-                                pass
-                            try:
-                                key.unbind(cs[1], "up")
-                            except:
-                                pass
-                    except:
-                        pass
+                key.unbind(callback, state, idendtification)
+        #         for f, cs in self._alias_bound_timed_functions.items():
+        #             try:
+        #                 if callback == f:
+        #                     try:
+        #                         key.unbind(cs[0], "down")
+        #                     except:
+        #                         pass
+        #                     try:
+        #                         key.unbind(cs[1], "down")
+        #                     except:
+        #                         pass
+        #                     try:
+        #                         key.unbind(cs[0], "up")
+        #                     except:
+        #                         pass
+        #                     try:
+        #                         key.unbind(cs[1], "up")
+        #                     except:
+        #                         pass
+        #             except:
+        #                 pass
         except:
             pass
 
@@ -485,6 +519,40 @@ class Key:
         self.bind(
             check_pressed,
             args=[callback, timer, args, send_self, sleep_after_execution],
+        )
+
+    def bind_double_press(
+        self,
+        callback: Callable,
+        args: Iterable = None,
+        send_self: bool = False,
+        time_delta: float = 0.25,
+    ):
+        def check_double_press(
+            self,
+            callback: Callable,
+            args: Iterable = None,
+            send_self: bool = False,
+            time_delta: float = 0.25,
+        ):
+            try:
+                delta = time() - self.last_2000[-1].time
+                if delta < time_delta:
+                    if send_self:
+                        if args == None:
+                            callback(self)
+                        else:
+                            callback(self, *args)
+                    else:
+                        if args == None:
+                            callback()
+                        else:
+                            callback(*args)
+            except:
+                pass
+
+        return self.bind(
+            check_double_press, [self, callback, args, send_self, time_delta]
         )
 
 
@@ -785,54 +853,18 @@ init()
 
 
 if __name__ == "__main__":
-    from decimal import Decimal
+    from var_print import varp
 
-    from colorama import Fore
-    from colorama import init as coloinit
-    from icecream import ic
+    def info_callback(key: Key):
+        # varp(dir(key))
+        try:
+            varp(time() - key.last_2000[-1].time)
+        except:
+            pass
+        ctrl.unbind(idendtification=ide)
 
-    coloinit(True)
-
-    def test(key):
-        print(
-            Fore.BLACK + "call by",
-            f"'{Fore.YELLOW}{key.name}'",
-            Fore.BLACK + "with current state:",
-            f"'{Fore.YELLOW}{key.state}'",
-            Fore.BLACK + "and current time:",
-            time(),
-        )
-        sleep(0.4)
-
-    start = None
-    clicks = 0
-    numbs = []
-    for i in range(1, 61):
-        n = Decimal(f"{i}.0") / Decimal("2")
-        numbs.append(n)
-    dones = []
-    # ic(numbs[0:10])
-
-    time_to_clicks = {}
-
-    def get_rate():
-        global start, clicks, c1, c2, c3, c4, c5
-        if start == None:
-            start = time()
-            c1 = c2 = c3 = c4 = c5 = True
-        clicks += 1
-
-        t = round(time() - start, 1)
-        for n in numbs:
-            if t == n and n not in dones:
-                print(f"\r{n} -> {clicks} Clicks mit {round(clicks/n, 2)} cps", end="")
-                dones.append(n)
-                time_to_clicks[float(n)] = clicks
-
-    f22 = get_Key("f22")
-    # f22.bind(get_rate)
-
-    f22.timed_hotkey_clickrate_based(test, send_self=True)
+    ctrl = getKey("ctrl")
+    ide = ctrl.bind_double_press(info_callback, send_self=True)
 
     wait("esc")
 
