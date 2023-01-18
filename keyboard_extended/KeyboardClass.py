@@ -772,7 +772,7 @@ def keyboard_hook_callback(event: KeyboardEvent):
         try:
             try:
                 name = Key.aliase_di[event.name]
-                print(name)
+                # print(name)
             except:
                 name = Key.aliase[event.name]
             key = Key.name_self_dict[name]
