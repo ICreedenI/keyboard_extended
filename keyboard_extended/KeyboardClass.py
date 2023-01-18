@@ -41,8 +41,8 @@ class Key:
     aliase = {
         "windows": ["linke windows", "rechte windows"],
         "end": ["ende"],
-        "ctrl": ["strg"],
-        "right ctrl": ["strg-rechts"],
+        "ctrl": ["strg", "strg-rechts"],
+        # "right ctrl": ["strg-rechts"],
         "enter": ["eingabe"],
         "shift": ["umschalt"],
         "capslock": ["feststell"],
@@ -772,6 +772,7 @@ def keyboard_hook_callback(event: KeyboardEvent):
         try:
             try:
                 name = Key.aliase_di[event.name]
+                print(name)
             except:
                 name = Key.aliase[event.name]
             key = Key.name_self_dict[name]
