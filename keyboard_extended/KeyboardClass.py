@@ -192,7 +192,6 @@ class Key:
         scan_code: int = None,
         active_modifiers: list = [],
     ) -> None:
-
         self._name = name
         self._state = state
         self._last_state = "up"
@@ -539,7 +538,7 @@ class Key:
         ):
             try:
                 delta = time() - self.last_2000[-1].time
-                if min_time_delta < delta < max_time_delta:
+                if min_time_delta <= delta <= max_time_delta:
                     if send_self:
                         if args == None:
                             callback(self)
@@ -556,6 +555,60 @@ class Key:
         return self.bind(
             check_double_press,
             [self, callback, args, send_self, max_time_delta, min_time_delta],
+        )
+
+    def bind_x_times_press(
+        self,
+        callback: Callable,
+        x: int = 3,
+        args: Iterable = None,
+        send_self: bool = False,
+        time_span: float = 0.4,
+        min_time_delta: float = 0.1,
+    ):
+        assert x >= 2
+
+        def check_x_press(
+            self,
+            callback: Callable,
+            args: Iterable = None,
+            send_self: bool = False,
+            time_span: float = 0.5,
+            min_time_delta: float = 0.1,
+        ):
+            try:
+                now = time()
+                last_downs = [n for n in self.last_2000 if n.event_type == "down"]
+                last_downs = last_downs[-x + 1 :]
+                last_down_times = [n.time for n in last_downs] + [self.last_down_time]
+
+                if (
+                    all([now - n < time_span for n in last_down_times])
+                    and all(
+                        [
+                            last_down_times[-i + 1] - last_down_times[-i]
+                            > min_time_delta
+                            for i in range(x, 1, -1)
+                        ]
+                    )
+                    and len(last_down_times) == x
+                ):
+                    if send_self:
+                        if args == None:
+                            callback(self)
+                        else:
+                            callback(self, *args)
+                    else:
+                        if args == None:
+                            callback()
+                        else:
+                            callback(*args)
+            except:
+                pass
+
+        return self.bind(
+            check_x_press,
+            [self, callback, args, send_self, time_span, min_time_delta],
         )
 
 
@@ -757,7 +810,6 @@ def keyboard_hook_callback(event: KeyboardEvent):
     """
 
     if round(time() - event.time, 2) < 0.1:
-
         # try: key = Key.name_self_dict[event.name]
         # except: key = Key(event.name, scan_code=event.scan_code)
 
@@ -863,12 +915,18 @@ if __name__ == "__main__":
         # varp(dir(key))
         try:
             varp(time() - key.last_2000[-1].time)
+
         except:
             pass
         # ctrl.unbind(idendtification=ide)
 
     ctrl = getKey("ctrl")
-    ide = ctrl.bind_double_press(info_callback, send_self=True)
+    ide = ctrl.bind(lambda: print("ctrl"))
+    ide = ctrl.bind_x_times_press(
+        info_callback,
+        3,
+        send_self=True,
+    )
 
     wait("esc")
 
