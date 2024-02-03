@@ -306,7 +306,9 @@ class Key:
     ):
         if callback == None and idendtification == None:
             raise ValueError("callback and idendtification are None")
-        # to_remove = []
+        if isinstance(callback, float) or isinstance(callback, int):
+            idendtification = callback
+            callback = None
         if state == "up":
             to_remove_indices_up = []
             for index, (
@@ -316,10 +318,7 @@ class Key:
                 idendtification_,
             ) in enumerate(self._callbacks_up):
                 if callback == callback_ or idendtification == idendtification_:
-                    # to_remove.append((callback, args, send_self, idendtification))
                     to_remove_indices_up.append(index)
-            # for n in to_remove:
-            #     self._callbacks_up.remove(n)
             for n in to_remove_indices_up[::-1]:
                 self._callbacks_up.pop(n)
         elif state == "down":
@@ -330,17 +329,8 @@ class Key:
                 send_self,
                 idendtification_,
             ) in enumerate(self._callbacks_down):
-                varp(
-                    idendtification == idendtification_,
-                    idendtification,
-                    idendtification_,
-                    self._callbacks_down,
-                )
                 if callback == callback_ or idendtification == idendtification_:
-                    # to_remove.append((callback, args, send_self, idendtification))
                     to_remove_indices_down.append(index)
-            # for n in to_remove:
-            #     self._callbacks_down.remove(n)
             for n in to_remove_indices_down[::-1]:
                 self._callbacks_down.pop(n)
         else:
@@ -350,27 +340,6 @@ class Key:
             for keyname in Key.aliase[self._name]:
                 key = Key.name_self_dict[keyname]
                 key.unbind(callback, state, idendtification)
-        #         for f, cs in self._alias_bound_timed_functions.items():
-        #             try:
-        #                 if callback == f:
-        #                     try:
-        #                         key.unbind(cs[0], "down")
-        #                     except:
-        #                         pass
-        #                     try:
-        #                         key.unbind(cs[1], "down")
-        #                     except:
-        #                         pass
-        #                     try:
-        #                         key.unbind(cs[0], "up")
-        #                     except:
-        #                         pass
-        #                     try:
-        #                         key.unbind(cs[1], "up")
-        #                     except:
-        #                         pass
-        #             except:
-        #                 pass
         except:
             pass
 
