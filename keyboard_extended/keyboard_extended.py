@@ -181,9 +181,14 @@ class Key:
         if len(binds) == 0:
             self.history_length = 0
         else:
-            presses = [
-                bind.keys_to_multipress_times[self.name]["presses"] for bind in binds
-            ]
+            presses = []
+            for bind in binds:
+                for key_name, multi_dict in bind.keys_to_multipress_times.items():
+                    key_scan_codes = key_to_scan_codes(key_name)
+                    if isinstance(key_scan_codes, int):
+                        key_scan_codes = [key_scan_codes,]
+                    if key_name == self.name or any([ksc in self.scan_code for ksc in key_scan_codes]):
+                        presses.append(multi_dict["presses"])
             self.history_length = max(presses) * self.history_length_factor
 
 
@@ -526,9 +531,6 @@ def bind_hotkey_multipress(
             + list(args)
         )
 
-    for key_name in keys_to_multipress_times:
-        key: Key = Key.get_key(key_name)
-        key.recalculate_history_length()
     binding_id = uuid.uuid4()
     binding = Binding(
         _id=binding_id,
@@ -544,6 +546,9 @@ def bind_hotkey_multipress(
         key = Key.get_key(key_name)
         key.bindings[binding_id] = binding
     Key._general_bindings[binding_id] = binding
+    for key_name in keys_to_multipress_times:
+        key: Key = Key.get_key(key_name)
+        key.recalculate_history_length()
     return binding_id
 
 
@@ -576,5 +581,6 @@ def remove_all_bindings():
     ids = list(Key._general_bindings.keys())
     for hotkey_id in ids:
         remove_binding(hotkey_id)
+
 
 
