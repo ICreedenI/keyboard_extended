@@ -177,7 +177,7 @@ class Key:
         return k
 
     def recalculate_history_length(self):
-        binds = [bind for bind in self.bindings if bind.type == "multipress"]
+        binds = [bind for bind in self.bindings.values() if bind.type == "multipress"]
         if len(binds) == 0:
             self.history_length = 0
         else:
