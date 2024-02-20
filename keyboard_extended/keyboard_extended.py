@@ -563,3 +563,13 @@ def remove_binding(hotkey_id):
     Key._general_bindings.pop(hotkey_id)
 
 
+def remove_all_bindings():
+    """Remove all hotkeys created using one of the following functions:
+    - `bind_hotkey`
+    - `bind_hotkey_hold`
+    - `bind_hotkey_multipress`
+    """
+    for hotkey_id in Key._general_bindings.keys():
+        remove_binding(hotkey_id)
+
+
