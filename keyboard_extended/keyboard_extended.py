@@ -109,8 +109,11 @@ class Key:
         return len(in_time_span)
 
     def check_for_callbacks(self):
-        for binding in self.bindings.values():
-            binding(self)
+        try:
+            for binding in self.bindings.values():
+                binding(self)
+        except RuntimeError:
+            return "self.bindings dictionary keys changed during iteration"
 
     @classmethod
     def _from_event(cls, event: KeyboardEvent):
@@ -569,7 +572,8 @@ def remove_all_bindings():
     - `bind_hotkey_hold`
     - `bind_hotkey_multipress`
     """
-    for hotkey_id in Key._general_bindings.keys():
+    ids = list(Key._general_bindings.keys())
+    for hotkey_id in ids:
         remove_binding(hotkey_id)
 
 
