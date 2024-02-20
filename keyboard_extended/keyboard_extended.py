@@ -6,6 +6,7 @@ from keyboard import *
 
 
 class KeyboardListener:
+    "Start listening to keyboard events. This is necessary to add hotkeys of this package since they rely on a hook to the keyboard."
     def __init__(self, start_listening: bool = True):
         self.hook = None
         if start_listening:

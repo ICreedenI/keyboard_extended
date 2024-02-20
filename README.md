@@ -1,9 +1,72 @@
 # keyboard_extended
 Extension for the keyboard package
 
-Class:
-- Key
-Funcitons:
-- getKey  
-  use this instead of creating a new instance to avoid deleting bindings
-- unbind_all_hotkeys
+## Relevant content:
+- `KeyboardListener`
+  - Class to start and stop listening to the keyboard. When creating an instance, there will be a new hook to the keyboard if start_listening is not set False. Use start_keyboard_hook to star listening manually, and  stop_keyboard_hook to stop listening manually.
+  - **Imortant:**
+    - **Without starting the hook using this class the hotkeys set with the function below won't work.**
+    - **If you create multiple instances of this class, your hotkeys will be called multiple times.**
+- `bind_hotkey`
+  - Add a normal hotkey to the given keys.
+  - Args:
+    - keys (str): The keys as a string, if multiple keys seperated by '+' (+ is than plus).
+    - callback (typing.Callable): Your callback, which is called when all criteria are met.
+    - args (typing.Iterable, optional): Your arguments to be passed to the callback function. Defaults to None.
+    - state (str, optional): The respective state of the button, which can be either "down" or "up". Defaults to "down".
+    - keys_to_states (dict[str, str], optional): May be a dictionary specifiing the (single) key name and the corresponding state for this key. Defaults to None.
+    - fire_when_hold (bool, optional): If all criteria are met and you keep the buttons pressed, the callback is called repeatedly. Defaults to False.
+    - send_keys (bool, optional): Add all the keys as a list to the arguments at position 0. Defaults to False.
+    - scan_code (int | tuple[int], optional): If you want to differentiate between keys that have the same name but different scan code (e.g. left and right shift) you can add the scan code here. You may input multiple scan codes. Reduces the relevant history of the key to events with matching scan codes. Defaults to None.
+    - ignore_keypad (bool, optional): With the True setting, any input via the keyboard is ignored. Defaults to False.
+  - Returns:
+    - UUID: The id needed to remove the binding using the remove_binding function.
+- `bind_hotkey_hold`
+  - Add a hotkey that requires the buttons to be held down.
+  - Args:
+      - keys (str): The keys as a string, if multiple keys seperated by '+' (+ is than plus).
+      - callback (typing.Callable): Your callback, which is called when all criteria are met.
+      - args (typing.Iterable, optional): Your arguments to be passed to the callback function. Defaults to None.
+      - time_span (float, optional): The period of time for which the keys have to be hold down. Defaults to 1.
+      - keys_to_hold_times (dict[str, float], optional): May be a dictionary specifiing the (single) key name and the minimum duration for which this key has to be hold down. Defaults to None.
+      - continue_fire_when_hold (bool, optional): If set to True the callback function will be called repeatedly. Defaults to False.
+      - send_keys (bool, optional): Add all the keys as a list to the arguments at position 0. Defaults to False.
+      - scan_code (int | tuple[int], optional): If you want to differentiate between keys that have the same name but different scan code (e.g. left and right shift) you can add the scan code here. You may input multiple scan codes. Reduces the relevant history of the key to events with matching scan codes. Defaults to None.
+      - ignore_keypad (bool, optional): With the True setting, any input via the keyboard is ignored. Defaults to False.
+
+  - Returns:
+      - UUID: The id needed to remove the binding using the remove_binding function.
+- `bind_hotkey_multipress`
+  - Add a hotkey that requires the keys to be pressed repeatedly.
+  - Args:
+      - keys (str): The keys as a string, if multiple keys seperated by '+' (+ is than plus).
+      - callback (typing.Callable): Your callback, which is called when all criteria are met.
+      - args (typing.Iterable, optional): Your arguments to be passed to the callback function. Defaults to None.
+      - time_span (float, optional): The period of time in which the presses must take place. Defaults to 0.5.
+      - presses (int, optional): The amount of which the key has to send the state. Defaults to 3.
+      - state (str, optional): The respective state of the button, which can be either "down" or "up" - if "up" only the "up" events of the history are relevant. Defaults to "down".
+      - keys_to_multipress_times (dict[str, dict[str, typing.Any]], optional): May be a dictionary specifiing the (single) key name and a corresponding dictionary containing "state", "time_span" and "presses" for this key. Defaults to None.
+      - fire_when_hold (bool, optional): If all criteria are met and you keep the buttons pressed, the callback may be called repeatedly. Defaults to False.
+      - send_keys (bool, optional): Add all the keys as a list to the arguments at position 0. Defaults to False.
+      - scan_code (int | tuple[int], optional): If you want to differentiate between keys that have the same name but different scan code (e.g. left and right shift) you can add the scan code here. You may input multiple scan codes. Reduces the relevant history of the key to events with matching scan codes. Defaults to None.
+      - ignore_keypad (bool, optional): With the True setting, any input via the keyboard is ignored. Defaults to False.
+  - Returns:
+      - UUID: The id needed to remove the binding using the remove_binding function.
+- `remove_binding`
+  - Remove a hotkey created using one of the following functions:
+    - `bind_hotkey`
+    - `bind_hotkey_hold`
+    - `bind_hotkey_multipress`
+  - Args:
+    - hotkey_id (UUID): The id needed to remove the hotkey. This is the return value of the functions listed above.
+- `remove_all_bindings`
+  - Remove all hotkeys created using one of the following functions:
+    - `bind_hotkey`
+    - `bind_hotkey_hold`
+    - `bind_hotkey_multipress`
+  
+## More content:
+- `Key`
+  - Class to handle keys
+- `Binding`
+  - Class to handle bindings
