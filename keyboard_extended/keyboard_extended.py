@@ -5,8 +5,14 @@ from time import time
 from keyboard import *
 
 
+event_keys = []
+user_keys = []
+user_to_event_keys = {}
+
+
 class KeyboardListener:
     "Start listening to keyboard events. This is necessary to add hotkeys of this package since they rely on a hook to the keyboard."
+
     def __init__(self, start_listening: bool = True):
         self.hook = None
         if start_listening:
@@ -20,16 +26,35 @@ class KeyboardListener:
             self.hook = unhook(self.hook)
 
     def _keyboard_hook(self, event: KeyboardEvent):
-        key: Key = Key.get_key(event.name)
-        if not key:
-            key = Key._from_event(event)
+        key = self._get_user_key_from_event(event)
+        key.update(event)
+        key.check_for_callbacks()
+
+    def _get_user_key_from_event(self, event: KeyboardEvent):
+        def get_key_from_event(event: KeyboardEvent):
+            reduced = [(n, s, kp) for (n, s, kp, k) in event_keys]
+            keys = [k for (n, s, kp, k) in event_keys]
+            try:
+                index = reduced.index((event.name, event.scan_code, event.is_keypad))
+                key = keys[index]
+            except:
+                key = Key._from_event(event)
+            return key
+
+        for entry in user_keys:
+            name, scan_codes, is_keypad, key = entry
+            key: Key
+            if event.is_keypad == is_keypad:
+                if event.name == name or event.scan_code in scan_codes:
+                    break
         else:
-            key.update(event)
-            key.check_for_callbacks()
+            key = get_key_from_event(event)
+        return key
 
 
 class Key:
     keys: dict = {}
+    keys_by_scan_codes: dict = {}
     _general_bindings = {}
 
     def __init__(
@@ -41,7 +66,6 @@ class Key:
         _time=0,
         device=None,
         is_keypad=None,
-        event: KeyboardEvent = None,
     ) -> None:
         self.name = name
         self.scan_code = scan_code
@@ -58,7 +82,8 @@ class Key:
         "When using multipress binding there must be a history. The length of this is calculated by the highest amound of needed presses for multiplied with this factor. When not using any multipress binding the history length is 0."
         self.bindings: dict[uuid.UUID, Binding] = {}
         "id to binding"
-        Key.keys[self.name] = self
+
+        Key.keys[name] = self
 
     def __str__(self) -> str:
         return f'Key object: name: "{self.name}", state: "{self.state}", scan_code: {self.scan_code}, last_state_change: {self.last_state_change}, last_update: {self.last_update}, len(bindings): {len(self.bindings)}, is_keypad: {self.is_keypad}, device: {self.device}'
@@ -99,16 +124,6 @@ class Key:
             while len(self.history) > self.history_length:
                 self.history.pop(0)
 
-    def get_amount_of_states_in_time_span(
-        self, state, time_span, scan_codes: tuple = None
-    ):
-        relevant = [x for x in self.history if x["state"] == state]
-        if scan_codes:
-            relevant = [x for x in relevant if x["last_scan_code"] in scan_codes]
-        _time = time()
-        in_time_span = [x for x in relevant if x["time"] >= _time - time_span]
-        return len(in_time_span)
-
     def check_for_callbacks(self):
         try:
             for binding in self.bindings.values():
@@ -126,19 +141,48 @@ class Key:
             event.time,
             event.device,
             event.is_keypad,
-            event,
         )
-        self.update(event)
+        event_keys.append((self.name, self.scan_code, self.is_keypad, self))
         return self
 
     @classmethod
-    def _from_name(cls, name: str):
+    def _from_name(cls, name: str, is_keypad: bool = False):
         name = name
-        scan_code = key_to_scan_codes(name)
+        scan_codes = key_to_scan_codes(name)
         self = cls(
             name,
-            scan_code,
+            scan_codes,
+            is_keypad=is_keypad,
         )
+
+        def find_key_in_event_keys(scan_codes, is_keypad) -> Key | None:
+            reduced = [(s, kp) for (n, s, kp, k) in event_keys]
+            keys = [k for (n, s, kp, k) in event_keys]
+            matches = []
+            for sc in scan_codes:
+                try:
+                    index = reduced.index((sc, is_keypad))
+                    key = keys[index]
+                    matches.append(key)
+                except:
+                    pass
+            if len(matches) > 0:
+                return matches[0]
+
+        evnt = find_key_in_event_keys(scan_codes, is_keypad)
+
+        if evnt:
+            self.last_scan_code = evnt.last_scan_code
+            self.state = evnt.state
+            self.modifiers = evnt.modifiers
+            self.last_state_change = evnt.last_state_change
+            self.last_update = evnt.last_update
+            self.device = evnt.device
+            self.history = evnt.history
+            self.history_length = evnt.history_length
+            self.history_length_factor = evnt.history_length_factor
+
+        user_keys.append((name, scan_codes, is_keypad, self))
         return self
 
     @staticmethod
@@ -153,28 +197,13 @@ class Key:
         return keys
 
     @staticmethod
-    def get_key(key: str):
-        k = Key.keys.get(key)
-        if not k:
-            scan_code = key_to_scan_codes(key, False)
-            if scan_code:
-                if isinstance(scan_code, int):
-                    scan_code = [
-                        scan_code,
-                    ]
-                for _key in Key.keys.values():
-                    ksc = _key.scan_code if _key.scan_code else []
-                    if isinstance(ksc, int):
-                        ksc = [
-                            ksc,
-                        ]
-                    if any([s in ksc for s in scan_code]) or any(
-                        [s in scan_code for s in ksc]
-                    ):
-                        return _key
-        if not k:
-            k = Key._from_name(key)
-        return k
+    def get_key(name: str, is_keypad: bool = False):
+        key = Key.keys.get(name)
+        try: kpd = key.is_keypad 
+        except: kpd = None
+        if not key or kpd != is_keypad:
+            key = Key._from_name(name, is_keypad)
+        return key
 
     def recalculate_history_length(self):
         binds = [bind for bind in self.bindings.values() if bind.type == "multipress"]
@@ -183,11 +212,8 @@ class Key:
         else:
             presses = []
             for bind in binds:
-                for key_name, multi_dict in bind.keys_to_multipress_times.items():
-                    key_scan_codes = key_to_scan_codes(key_name)
-                    if isinstance(key_scan_codes, int):
-                        key_scan_codes = [key_scan_codes,]
-                    if key_name == self.name or any([ksc in self.scan_code for ksc in key_scan_codes]):
+                for key, multi_dict in bind.keys_to_multipress_times.items():
+                    if key == self:
                         presses.append(multi_dict["presses"])
             self.history_length = max(presses) * self.history_length_factor
 
@@ -205,8 +231,6 @@ class Binding:
         keys_to_hold_times: dict[str, float] = {},
         keys_to_multipress_times: dict[str, dict[str, typing.Any]] = {},
         fire_when_hold: bool = False,
-        scan_code: int | tuple = None,
-        ignore_keypad: bool = False,
     ) -> None:
         assert (
             _type in Binding.types
@@ -220,10 +244,6 @@ class Binding:
         self.args = args
         self.fire_when_hold = fire_when_hold
         self.did_fire = False
-        if isinstance(scan_code, int):
-            scan_code = (scan_code,)
-        self.scan_code = scan_code
-        self.ignore_keypad = ignore_keypad
         self.keys = (
             list(keys_to_states.keys())
             + list(keys_to_hold_times.keys())
@@ -238,28 +258,14 @@ class Binding:
                 self.callback()
 
     def check_conditions(self, key: Key):
-        if self.ignore_keypad and key.is_keypad:
-            return False
-
         if self.type == "normal":
-            if self.scan_code:
-                last_scan_codes = []
-                for k in self.keys_to_multipress_times:
-                    last_scan_code = Key.get_key(k).last_scan_code
-                    if isinstance(last_scan_code, int):
-                        last_scan_codes.append(last_scan_code)
-                    else:
-                        last_scan_codes.extend(last_scan_code)
-                if not all([sc in last_scan_codes for sc in self.scan_code]):
-                    return False
-
             case1 = all(
-                [Key.get_key(k).state == v for k, v in self.keys_to_states.items()]
+                [k.state == v for k, v in self.keys_to_states.items()]
             )  # check if all the keys are in the correct state
             case2 = (
                 any(
                     [
-                        Key.get_key(k).last_update == Key.get_key(k).last_state_change
+                        k.last_update == k.last_state_change
                         for k in self.keys_to_states.keys()
                     ]
                 )  # check whether or not the key state was just changed
@@ -269,28 +275,17 @@ class Binding:
             return case1 and case2
 
         elif self.type == "hold":
-            if self.scan_code:
-                last_scan_codes = []
-                for k in self.keys_to_multipress_times:
-                    last_scan_code = Key.get_key(k).last_scan_code
-                    if isinstance(last_scan_code, int):
-                        last_scan_codes.append(last_scan_code)
-                    else:
-                        last_scan_codes.extend(last_scan_code)
-                if not all([sc in last_scan_codes for sc in self.scan_code]):
-                    return False
-
             _time = time()
             case1 = all(
                 [
-                    _time - Key.get_key(k).last_state_change >= v
+                    _time - k.last_state_change >= v
                     for k, v in self.keys_to_hold_times.items()
                 ]
             )  # check whether or not the key was long engough in the correct state
             case2 = (
                 any(
                     [
-                        Key.get_key(k).last_update == Key.get_key(k).last_state_change
+                        k.last_update == k.last_state_change
                         for k in self.keys_to_hold_times.keys()
                     ]
                 )  # check whether or not the key state was just changed
@@ -298,10 +293,7 @@ class Binding:
                 else True
             )
             case3 = not any(
-                [
-                    Key.get_key(k).last_state_change == 0
-                    for k, v in self.keys_to_hold_times.items()
-                ]
+                [k.last_state_change == 0 for k, v in self.keys_to_hold_times.items()]
             )  # verify that the key was pressed before
             if case1 and case3:
                 if (not case2 and not self.did_fire) or self.fire_when_hold:
@@ -312,21 +304,10 @@ class Binding:
             return False
 
         elif self.type == "multipress":
-            if self.scan_code:
-                last_scan_codes = []
-                for k in self.keys_to_multipress_times:
-                    last_scan_code = Key.get_key(k).last_scan_code
-                    if isinstance(last_scan_code, int):
-                        last_scan_codes.append(last_scan_code)
-                    else:
-                        last_scan_codes.extend(last_scan_code)
-                if not all([sc in last_scan_codes for sc in self.scan_code]):
-                    return False
-
             case1 = all(
                 [
                     self.get_amount_of_states_in_time_span(
-                        Key.get_key(k), v["state"], v["time_span"], self.scan_code
+                        k, v["state"], v["time_span"]
                     )
                     >= v["presses"]
                     for k, v in self.keys_to_multipress_times.items()
@@ -335,7 +316,7 @@ class Binding:
             case2 = (
                 any(
                     [
-                        Key.get_key(k).last_update == Key.get_key(k).last_state_change
+                        k.last_update == k.last_state_change
                         for k in self.keys_to_multipress_times.keys()
                     ]
                 )  # check whether or not the key state was just changed
@@ -344,7 +325,7 @@ class Binding:
             )
             case3 = all(
                 [
-                    Key.get_key(k).state == v["state"]
+                    k.state == v["state"]
                     for k, v in self.keys_to_multipress_times.items()
                 ]
             )  # check whether all keys are in the correct state
@@ -358,11 +339,11 @@ class Binding:
 
     @staticmethod
     def get_amount_of_states_in_time_span(
-        key: Key, state, time_span, scan_codes: tuple = None
+        key: Key,
+        state,
+        time_span,
     ):
         relevant = [x for x in key.history if x["state"] == state]
-        if scan_codes:
-            relevant = [x for x in relevant if x["last_scan_code"] in scan_codes]
         _time = time()
         in_time_span = [x for x in relevant if x["time"] >= _time - time_span]
         return len(in_time_span)
@@ -376,8 +357,7 @@ def bind_hotkey(
     keys_to_states: dict[str, str] = None,
     fire_when_hold: bool = False,
     send_keys: bool = False,
-    scan_code: int | tuple[int] = None,
-    ignore_keypad: bool = False,
+    is_keypad: bool = False,
 ):
     """Add a normal hotkey to the given keys.
 
@@ -386,19 +366,27 @@ def bind_hotkey(
         callback (typing.Callable): Your callback, which is called when all criteria are met.
         args (typing.Iterable, optional): Your arguments to be passed to the callback function. Defaults to None.
         state (str, optional): The respective state of the button, which can be either "down" or "up". Defaults to "down".
-        keys_to_states (dict[str, str], optional): May be a dictionary specifiing the (single) key name and the corresponding state for this key. Defaults to None.
+        keys_to_states (dict[str, str], optional): May be a dictionary specifiing the (single) key name and the corresponding state for this key. The state may be a tuple containing not only the state but also the is_keypad option for this key. Defaults to None.
         fire_when_hold (bool, optional): If all criteria are met and you keep the buttons pressed, the callback is called repeatedly. Defaults to False.
         send_keys (bool, optional): Add all the keys as a list to the arguments at position 0. Defaults to False.
-        scan_code (int | tuple[int], optional): If you want to differentiate between keys that have the same name but different scan code (e.g. left and right shift) you can add the scan code here. You may input multiple scan codes. Reduces the relevant history of the key to events with matching scan codes. Defaults to None.
-        ignore_keypad (bool, optional): With the True setting, any input via the keyboard is ignored. Defaults to False.
+        is_keypad (bool, optional): All buttons on the keypad are only active if this option is set to True, but this also deactivates all buttons that are not part of the keypad. Defaults to False.
 
     Returns:
         UUID: The id needed to remove the binding using the remove_binding function.
     """
     if not keys_to_states:
         keys_to_states = {k: state for k in Key._keys_from_string(keys)}
+    _keys_to_states = {}
+    for k, state in keys_to_states.items():
+        if isinstance(state, str):
+            key = Key.get_key(k, is_keypad)
+            _keys_to_states[key] = state
+        else:
+            key = Key.get_key(k, state[1])
+            _keys_to_states[key] = state[0]
+    keys_to_states = _keys_to_states.copy()
     if send_keys:
-        key_args = [Key.get_key(k) for k in keys_to_states.keys()]
+        key_args = [k for k in keys_to_states.keys()]
         if not args:
             args = []
         args = tuple(
@@ -416,11 +404,8 @@ def bind_hotkey(
         args=args,
         keys_to_states=keys_to_states,
         fire_when_hold=fire_when_hold,
-        scan_code=scan_code,
-        ignore_keypad=ignore_keypad,
     )
-    for key_name in keys_to_states:
-        key = Key.get_key(key_name)
+    for key in keys_to_states:
         key.bindings[binding_id] = binding
     Key._general_bindings[binding_id] = binding
     return binding_id
@@ -434,8 +419,7 @@ def bind_hotkey_hold(
     keys_to_hold_times: dict[str, float] = None,
     continue_fire_when_hold: bool = False,
     send_keys: bool = False,
-    scan_code: int | tuple[int] = None,
-    ignore_keypad: bool = False,
+    is_keypad: bool = False,
 ):
     """Add a hotkey that requires the buttons to be held down.
 
@@ -444,19 +428,27 @@ def bind_hotkey_hold(
         callback (typing.Callable): Your callback, which is called when all criteria are met.
         args (typing.Iterable, optional): Your arguments to be passed to the callback function. Defaults to None.
         time_span (float, optional): The period of time for which the keys have to be hold down. Defaults to 1.
-        keys_to_hold_times (dict[str, float], optional): May be a dictionary specifiing the (single) key name and the minimum duration for which this key has to be hold down. Defaults to None.
+        keys_to_hold_times (dict[str, float], optional): May be a dictionary specifiing the (single) key name and the minimum duration for which this key has to be hold down. The duration may be a tuple containing not only the state but also the is_keypad option for this key. Defaults to None.
         continue_fire_when_hold (bool, optional): If set to True the callback function will be called repeatedly. Defaults to False.
         send_keys (bool, optional): Add all the keys as a list to the arguments at position 0. Defaults to False.
-        scan_code (int | tuple[int], optional): If you want to differentiate between keys that have the same name but different scan code (e.g. left and right shift) you can add the scan code here. You may input multiple scan codes. Reduces the relevant history of the key to events with matching scan codes. Defaults to None.
-        ignore_keypad (bool, optional): With the True setting, any input via the keyboard is ignored. Defaults to False.
+        is_keypad (bool, optional): All buttons on the keypad are only active if this option is set to True, but this also deactivates all buttons that are not part of the keypad. Defaults to False.
 
     Returns:
         UUID: The id needed to remove the binding using the remove_binding function.
     """
     if not keys_to_hold_times:
         keys_to_hold_times = {k: time_span for k in Key._keys_from_string(keys)}
+    _keys_to_hold_times = {}
+    for k, v in keys_to_hold_times.items():
+        if isinstance(v, float) or isinstance(v, int):
+            key = Key.get_key(k, is_keypad)
+            _keys_to_hold_times[key] = v
+        else:
+            key = Key.get_key(k, v[1])
+            _keys_to_hold_times[key] = v[0]
+    keys_to_hold_times = _keys_to_hold_times.copy()
     if send_keys:
-        key_args = [Key.get_key(k) for k in keys_to_hold_times.keys()]
+        key_args = [k for k in keys_to_hold_times.keys()]
         if not args:
             args = []
         args = tuple(
@@ -474,11 +466,8 @@ def bind_hotkey_hold(
         args=args,
         keys_to_hold_times=keys_to_hold_times,
         fire_when_hold=continue_fire_when_hold,
-        scan_code=scan_code,
-        ignore_keypad=ignore_keypad,
     )
-    for key_name in keys_to_hold_times:
-        key = Key.get_key(key_name)
+    for key in keys_to_hold_times:
         key.bindings[binding_id] = binding
     Key._general_bindings[binding_id] = binding
     return binding_id
@@ -494,8 +483,7 @@ def bind_hotkey_multipress(
     keys_to_multipress_times: dict[str, dict[str, typing.Any]] = None,
     fire_when_hold: bool = False,
     send_keys: bool = False,
-    scan_code: int | tuple[int] = None,
-    ignore_keypad: bool = False,
+    is_keypad: bool = False,
 ):
     """Add a hotkey that requires the keys to be pressed repeatedly.
 
@@ -506,11 +494,10 @@ def bind_hotkey_multipress(
         time_span (float, optional): The period of time in which the presses must take place. Defaults to 0.5.
         presses (int, optional): The amount of which the key has to send the state. Defaults to 3.
         state (str, optional): The respective state of the button, which can be either "down" or "up" - if "up" only the "up" events of the history are relevant. Defaults to "down".
-        keys_to_multipress_times (dict[str, dict[str, typing.Any]], optional): May be a dictionary specifiing the (single) key name and a corresponding dictionary containing "state", "time_span" and "presses" for this key. Defaults to None.
+        keys_to_multipress_times (dict[str, dict[str, typing.Any]], optional): May be a dictionary specifiing the (single) key name and a corresponding dictionary containing "state", "time_span", "presses" and "is_keypad" for this key. Defaults to None.
         fire_when_hold (bool, optional): If all criteria are met and you keep the buttons pressed, the callback may be called repeatedly. Defaults to False.
         send_keys (bool, optional): Add all the keys as a list to the arguments at position 0. Defaults to False.
-        scan_code (int | tuple[int], optional): If you want to differentiate between keys that have the same name but different scan code (e.g. left and right shift) you can add the scan code here. You may input multiple scan codes. Reduces the relevant history of the key to events with matching scan codes. Defaults to None.
-        ignore_keypad (bool, optional): With the True setting, any input via the keyboard is ignored. Defaults to False.
+        is_keypad (bool, optional): All buttons on the keypad are only active if this option is set to True, but this also deactivates all buttons that are not part of the keypad. Defaults to False.
 
     Returns:
         UUID: The id needed to remove the binding using the remove_binding function.
@@ -520,8 +507,18 @@ def bind_hotkey_multipress(
             k: {"state": state, "time_span": time_span, "presses": presses}
             for k in Key._keys_from_string(keys)
         }
+    _keys_to_multipress_times = {}
+    for k, v in keys_to_multipress_times.items():
+        kpad = v.get("is_keypad")
+        if kpad != None:
+            key = Key.get_key(k, v["is_keypad"])
+            _keys_to_multipress_times[key] = v
+        else:
+            key = Key.get_key(k, is_keypad)
+            _keys_to_multipress_times[key] = v
+    keys_to_multipress_times = _keys_to_multipress_times.copy()
     if send_keys:
-        key_args = [Key.get_key(k) for k in keys_to_multipress_times.keys()]
+        key_args = [k for k in keys_to_multipress_times.keys()]
         if not args:
             args = []
         args = tuple(
@@ -539,15 +536,11 @@ def bind_hotkey_multipress(
         args=args,
         keys_to_multipress_times=keys_to_multipress_times,
         fire_when_hold=fire_when_hold,
-        scan_code=scan_code,
-        ignore_keypad=ignore_keypad,
     )
-    for key_name in keys_to_multipress_times:
-        key = Key.get_key(key_name)
+    for key in keys_to_multipress_times:
         key.bindings[binding_id] = binding
     Key._general_bindings[binding_id] = binding
-    for key_name in keys_to_multipress_times:
-        key: Key = Key.get_key(key_name)
+    for key in keys_to_multipress_times:
         key.recalculate_history_length()
     return binding_id
 
@@ -563,11 +556,9 @@ def remove_binding(hotkey_id):
     """
     binding: Binding = Key._general_bindings[hotkey_id]
     if binding.type == "multipress":
-        for key_name in binding.keys:
-            key: Key = Key.get_key(key_name)
+        for key in binding.keys:
             key.recalculate_history_length()
-    for key_name in binding.keys:
-        key: Key = Key.get_key(key_name)
+    for key in binding.keys:
         key.bindings.pop(hotkey_id)
     Key._general_bindings.pop(hotkey_id)
 
@@ -581,6 +572,5 @@ def remove_all_bindings():
     ids = list(Key._general_bindings.keys())
     for hotkey_id in ids:
         remove_binding(hotkey_id)
-
 
 
