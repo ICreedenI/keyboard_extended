@@ -199,8 +199,10 @@ class Key:
     @staticmethod
     def get_key(name: str, is_keypad: bool = False):
         key = Key.keys.get(name)
-        try: kpd = key.is_keypad 
-        except: kpd = None
+        try:
+            kpd = key.is_keypad
+        except:
+            kpd = None
         if not key or kpd != is_keypad:
             key = Key._from_name(name, is_keypad)
         return key
@@ -262,16 +264,18 @@ class Binding:
             case1 = all(
                 [k.state == v for k, v in self.keys_to_states.items()]
             )  # check if all the keys are in the correct state
+           
             case2 = (
                 any(
                     [
-                        k.last_update == k.last_state_change
+                        round(time(), 1) == round(k.last_state_change, 1)
                         for k in self.keys_to_states.keys()
                     ]
-                )  # check whether or not the key state was just changed
+                )  # check whether or not the key state was just changed - prior case2 has buggy behavior, where k.last_update == k.last_state_change is True since holding multiple keys doesn't trigger all the keys to update
                 if not self.fire_when_hold
                 else True
             )
+
             return case1 and case2
 
         elif self.type == "hold":
@@ -285,10 +289,10 @@ class Binding:
             case2 = (
                 any(
                     [
-                        k.last_update == k.last_state_change
-                        for k in self.keys_to_hold_times.keys()
+                        round(time(), 1) == round(k.last_state_change, 1)
+                        for k in self.keys_to_states.keys()
                     ]
-                )  # check whether or not the key state was just changed
+                )  # check whether or not the key state was just changed - case2 has buggy behavior
                 if not self.fire_when_hold
                 else True
             )
@@ -316,10 +320,10 @@ class Binding:
             case2 = (
                 any(
                     [
-                        k.last_update == k.last_state_change
-                        for k in self.keys_to_multipress_times.keys()
+                        round(time(), 1) == round(k.last_state_change, 1)
+                        for k in self.keys_to_states.keys()
                     ]
-                )  # check whether or not the key state was just changed
+                )  # check whether or not the key state was just changed - case2 has buggy behavior
                 if not self.fire_when_hold
                 else True
             )
@@ -572,5 +576,3 @@ def remove_all_bindings():
     ids = list(Key._general_bindings.keys())
     for hotkey_id in ids:
         remove_binding(hotkey_id)
-
-

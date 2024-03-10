@@ -29,7 +29,7 @@ DESCRIPTION = "Extension for the keyboard package"
 # Setting up
 setup(
     name="keyboard_extended",
-    version="0.2.0",
+    version="0.2.1",
     author="André Herber",
     author_email="andre.herber.programming@gmail.com",
     description=DESCRIPTION,
