@@ -290,7 +290,7 @@ class Binding:
                 any(
                     [
                         round(time(), 1) == round(k.last_state_change, 1)
-                        for k in self.keys_to_states.keys()
+                        for k in self.keys_to_hold_times.keys()
                     ]
                 )  # check whether or not the key state was just changed - case2 has buggy behavior
                 if not self.fire_when_hold
@@ -321,7 +321,7 @@ class Binding:
                 any(
                     [
                         round(time(), 1) == round(k.last_state_change, 1)
-                        for k in self.keys_to_states.keys()
+                        for k in self.keys_to_multipress_times.keys()
                     ]
                 )  # check whether or not the key state was just changed - case2 has buggy behavior
                 if not self.fire_when_hold
@@ -576,3 +576,6 @@ def remove_all_bindings():
     ids = list(Key._general_bindings.keys())
     for hotkey_id in ids:
         remove_binding(hotkey_id)
+
+
+
