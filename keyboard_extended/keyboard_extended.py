@@ -233,6 +233,7 @@ class Binding:
         keys_to_hold_times: dict[str, float] = {},
         keys_to_multipress_times: dict[str, dict[str, typing.Any]] = {},
         fire_when_hold: bool = False,
+        max_delay: float = 0.01,
     ) -> None:
         assert (
             _type in Binding.types
@@ -245,6 +246,7 @@ class Binding:
         self.type = _type
         self.args = args
         self.fire_when_hold = fire_when_hold
+        self.max_delay = max_delay
         self.did_fire = False
         self.keys = (
             list(keys_to_states.keys())
@@ -260,6 +262,7 @@ class Binding:
                 self.callback()
 
     def check_conditions(self, key: Key):
+        if not time() - key.last_update < self.max_delay: return False
         if self.type == "normal":
             case1 = all(
                 [k.state == v for k, v in self.keys_to_states.items()]
@@ -276,7 +279,9 @@ class Binding:
                 else True
             )
 
-            return case1 and case2
+            case3 = all([time() - k.last_update < self.max_delay for k in self.keys_to_states.keys()])
+
+            return case1 and case2 and case3
 
         elif self.type == "hold":
             _time = time()
@@ -299,7 +304,10 @@ class Binding:
             case3 = not any(
                 [k.last_state_change == 0 for k, v in self.keys_to_hold_times.items()]
             )  # verify that the key was pressed before
-            if case1 and case3:
+            
+            case4 = all([time() - k.last_update < self.max_delay for k in self.keys_to_hold_times.keys()])
+
+            if case1 and case3 and case4:
                 if (not case2 and not self.did_fire) or self.fire_when_hold:
                     self.did_fire = True
                     return True
@@ -333,13 +341,16 @@ class Binding:
                     for k, v in self.keys_to_multipress_times.items()
                 ]
             )  # check whether all keys are in the correct state
+
+            case4 = all([time() - k.last_update < self.max_delay for k in self.keys_to_multipress_times.keys()])
+
             if self.did_fire and case2 and case3:
                 case1 = True  # case1 is False when key is hold down -> to fire when hold down, set it to True
             if case1 and case2 and case3:
                 self.did_fire = True
             else:
                 self.did_fire = False
-            return case1 and case2 and case3
+            return case1 and case2 and case3 and case4
 
     @staticmethod
     def get_amount_of_states_in_time_span(
@@ -362,6 +373,7 @@ def bind_hotkey(
     fire_when_hold: bool = False,
     send_keys: bool = False,
     is_keypad: bool = False,
+    max_delay: float = 0.01
 ):
     """Add a normal hotkey to the given keys.
 
@@ -374,6 +386,7 @@ def bind_hotkey(
         fire_when_hold (bool, optional): If all criteria are met and you keep the buttons pressed, the callback is called repeatedly. Defaults to False.
         send_keys (bool, optional): Add all the keys as a list to the arguments at position 0. Defaults to False.
         is_keypad (bool, optional): All buttons on the keypad are only active if this option is set to True, but this also deactivates all buttons that are not part of the keypad. Defaults to False.
+        max_delay (float, optional): The maximum delay in seconds between the keyboard event and the trigger of the callback. Defaults to 0.01.
 
     Returns:
         UUID: The id needed to remove the binding using the remove_binding function.
@@ -408,6 +421,7 @@ def bind_hotkey(
         args=args,
         keys_to_states=keys_to_states,
         fire_when_hold=fire_when_hold,
+        max_delay=max_delay,
     )
     for key in keys_to_states:
         key.bindings[binding_id] = binding
@@ -424,6 +438,7 @@ def bind_hotkey_hold(
     continue_fire_when_hold: bool = False,
     send_keys: bool = False,
     is_keypad: bool = False,
+    max_delay: float = 0.01
 ):
     """Add a hotkey that requires the buttons to be held down.
 
@@ -436,6 +451,7 @@ def bind_hotkey_hold(
         continue_fire_when_hold (bool, optional): If set to True the callback function will be called repeatedly. Defaults to False.
         send_keys (bool, optional): Add all the keys as a list to the arguments at position 0. Defaults to False.
         is_keypad (bool, optional): All buttons on the keypad are only active if this option is set to True, but this also deactivates all buttons that are not part of the keypad. Defaults to False.
+        max_delay (float, optional): The maximum delay in seconds between the keyboard event and the trigger of the callback. Defaults to 0.01.
 
     Returns:
         UUID: The id needed to remove the binding using the remove_binding function.
@@ -470,6 +486,7 @@ def bind_hotkey_hold(
         args=args,
         keys_to_hold_times=keys_to_hold_times,
         fire_when_hold=continue_fire_when_hold,
+        max_delay=max_delay,
     )
     for key in keys_to_hold_times:
         key.bindings[binding_id] = binding
@@ -488,6 +505,7 @@ def bind_hotkey_multipress(
     fire_when_hold: bool = False,
     send_keys: bool = False,
     is_keypad: bool = False,
+    max_delay: float = 0.01
 ):
     """Add a hotkey that requires the keys to be pressed repeatedly.
 
@@ -502,6 +520,7 @@ def bind_hotkey_multipress(
         fire_when_hold (bool, optional): If all criteria are met and you keep the buttons pressed, the callback may be called repeatedly. Defaults to False.
         send_keys (bool, optional): Add all the keys as a list to the arguments at position 0. Defaults to False.
         is_keypad (bool, optional): All buttons on the keypad are only active if this option is set to True, but this also deactivates all buttons that are not part of the keypad. Defaults to False.
+        max_delay (float, optional): The maximum delay in seconds between the keyboard event and the trigger of the callback. Defaults to 0.01.
 
     Returns:
         UUID: The id needed to remove the binding using the remove_binding function.
@@ -540,6 +559,7 @@ def bind_hotkey_multipress(
         args=args,
         keys_to_multipress_times=keys_to_multipress_times,
         fire_when_hold=fire_when_hold,
+        max_delay=max_delay,
     )
     for key in keys_to_multipress_times:
         key.bindings[binding_id] = binding
@@ -578,4 +598,12 @@ def remove_all_bindings():
         remove_binding(hotkey_id)
 
 
-
+if __name__ == '__main__':
+    from time import sleep, time
+    KeyboardListener()
+    
+    def test():
+        print("ja", time())
+        sleep(1)
+    bind_hotkey("ctrl", test, fire_when_hold=True)
+    wait("esc")
