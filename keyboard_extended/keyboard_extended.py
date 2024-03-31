@@ -598,12 +598,3 @@ def remove_all_bindings():
         remove_binding(hotkey_id)
 
 
-if __name__ == '__main__':
-    from time import sleep, time
-    KeyboardListener()
-    
-    def test():
-        print("ja", time())
-        sleep(1)
-    bind_hotkey("ctrl", test, fire_when_hold=True)
-    wait("esc")
