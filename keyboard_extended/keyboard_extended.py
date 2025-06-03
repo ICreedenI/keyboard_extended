@@ -267,7 +267,7 @@ class Binding:
             case1 = all(
                 [k.state == v for k, v in self.keys_to_states.items()]
             )  # check if all the keys are in the correct state
-           
+
             case2 = (
                 any(
                     [
@@ -304,7 +304,7 @@ class Binding:
             case3 = not any(
                 [k.last_state_change == 0 for k, v in self.keys_to_hold_times.items()]
             )  # verify that the key was pressed before
-            
+
             case4 = all([time() - k.last_update < self.max_delay for k in self.keys_to_hold_times.keys()])
 
             if case1 and case3 and case4:
@@ -596,5 +596,3 @@ def remove_all_bindings():
     ids = list(Key._general_bindings.keys())
     for hotkey_id in ids:
         remove_binding(hotkey_id)
-
-
