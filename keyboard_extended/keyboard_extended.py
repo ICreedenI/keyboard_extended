@@ -234,10 +234,12 @@ class Binding:
         keys_to_multipress_times: dict[str, dict[str, typing.Any]] = {},
         fire_when_hold: bool = False,
         max_delay: float = 0.01,
+        # NEW:
+        send_hold_duration: bool = False,
+        hold_duration_kw: str = "hold_duration",
+        hold_duration_mode: str = "min",  # "min" | "max" | "dict"
     ) -> None:
-        assert (
-            _type in Binding.types
-        )  # _type must be one of "normal", "hold", "multipress"
+        assert _type in Binding.types
         self.id = _id
         self.keys_to_states = keys_to_states
         self.keys_to_hold_times = keys_to_hold_times
@@ -248,6 +250,13 @@ class Binding:
         self.fire_when_hold = fire_when_hold
         self.max_delay = max_delay
         self.did_fire = False
+
+        # NEW:
+        self.send_hold_duration = send_hold_duration
+        self.hold_duration_kw = hold_duration_kw
+        self.hold_duration_mode = hold_duration_mode
+        self._last_hold_duration_payload = None
+
         self.keys = (
             list(keys_to_states.keys())
             + list(keys_to_hold_times.keys())
@@ -256,10 +265,14 @@ class Binding:
 
     def __call__(self, key: Key):
         if self.check_conditions(key):
+            kwargs = {}
+            if self.type == "hold" and self.send_hold_duration:
+                kwargs[self.hold_duration_kw] = self._last_hold_duration_payload
+
             if self.args:
-                self.callback(*self.args)
+                self.callback(*self.args, **kwargs)
             else:
-                self.callback()
+                self.callback(**kwargs)
 
     def check_conditions(self, key: Key):
         if not time() - key.last_update < self.max_delay: return False
@@ -285,34 +298,51 @@ class Binding:
 
         elif self.type == "hold":
             _time = time()
+
             case1 = all(
                 [
                     _time - k.last_state_change >= v
                     for k, v in self.keys_to_hold_times.items()
                 ]
-            )  # check whether or not the key was long engough in the correct state
+            )
             case2 = (
                 any(
                     [
                         round(time(), 1) == round(k.last_state_change, 1)
                         for k in self.keys_to_hold_times.keys()
                     ]
-                )  # check whether or not the key state was just changed - case2 has buggy behavior
+                )
                 if not self.fire_when_hold
                 else True
             )
             case3 = not any(
                 [k.last_state_change == 0 for k, v in self.keys_to_hold_times.items()]
-            )  # verify that the key was pressed before
-
+            )
             case4 = all([time() - k.last_update < self.max_delay for k in self.keys_to_hold_times.keys()])
 
             if case1 and case3 and case4:
                 if (not case2 and not self.did_fire) or self.fire_when_hold:
+                    # NEW: capture actual hold durations at trigger moment
+                    durations = {
+                        k: (_time - k.last_state_change)
+                        for k in self.keys_to_hold_times.keys()
+                    }
+                    if self.hold_duration_mode == "dict":
+                        self._last_hold_duration_payload = durations
+                    elif self.hold_duration_mode == "max":
+                        self._last_hold_duration_payload = (
+                            max(durations.values()) if durations else 0.0
+                        )
+                    else:  # default "min" makes most sense for multi-key bindings
+                        self._last_hold_duration_payload = (
+                            min(durations.values()) if durations else 0.0
+                        )
+
                     self.did_fire = True
                     return True
             elif not case1:
                 self.did_fire = False
+
             return False
 
         elif self.type == "multipress":
@@ -438,20 +468,39 @@ def bind_hotkey_hold(
     continue_fire_when_hold: bool = False,
     send_keys: bool = False,
     is_keypad: bool = False,
-    max_delay: float = 0.01
+    max_delay: float = 0.01,
+    send_hold_duration: bool = False,
+    hold_duration_kw: str = "hold_duration",
+    hold_duration_mode: str = "min",  # "min" | "max" | "dict"
 ):
     """Add a hotkey that requires the buttons to be held down.
 
     Args:
-        keys (str): The keys as a string, if multiple keys seperated by '+' (+ is than plus).
+        keys (str): The keys as a string, if multiple keys separated by '+' ('+' itself is written as '+').
         callback (typing.Callable): Your callback, which is called when all criteria are met.
-        args (typing.Iterable, optional): Your arguments to be passed to the callback function. Defaults to None.
-        time_span (float, optional): The period of time for which the keys have to be hold down. Defaults to 1.
-        keys_to_hold_times (dict[str, float], optional): May be a dictionary specifiing the (single) key name and the minimum duration for which this key has to be hold down. The duration may be a tuple containing not only the state but also the is_keypad option for this key. Defaults to None.
-        continue_fire_when_hold (bool, optional): If set to True the callback function will be called repeatedly. Defaults to False.
-        send_keys (bool, optional): Add all the keys as a list to the arguments at position 0. Defaults to False.
-        is_keypad (bool, optional): All buttons on the keypad are only active if this option is set to True, but this also deactivates all buttons that are not part of the keypad. Defaults to False.
-        max_delay (float, optional): The maximum delay in seconds between the keyboard event and the trigger of the callback. Defaults to 0.01.
+        args (typing.Iterable, optional): Positional arguments passed to the callback. Defaults to None.
+        time_span (float, optional): The period of time for which the keys have to be held down (seconds). Defaults to 1.
+        keys_to_hold_times (dict[str, float], optional): A dictionary specifying the (single) key name and the
+            minimum duration (seconds) for which this key has to be held down. The duration may also be a tuple
+            containing (duration, is_keypad) for this key. Defaults to None.
+        continue_fire_when_hold (bool, optional): If set to True the callback will be called repeatedly while the
+            hold condition remains true. Defaults to False.
+        send_keys (bool, optional): Add all involved Key objects as a list to the positional arguments at position 0.
+            Defaults to False.
+        is_keypad (bool, optional): If True, only keypad keys are considered active; non-keypad keys are ignored.
+            Defaults to False.
+        max_delay (float, optional): The maximum delay in seconds between the keyboard event and the trigger of the
+            callback. Defaults to 0.01.
+
+        send_hold_duration (bool, optional): If True, inject the actual measured hold duration into the callback as
+            a keyword argument. Defaults to False.
+        hold_duration_kw (str, optional): Name of the keyword argument used when injecting the hold duration.
+            Defaults to "hold_duration".
+        hold_duration_mode (str, optional): Determines what value is injected for multi-key holds:
+            - "min": the minimum duration across all keys (recommended default for combos)
+            - "max": the maximum duration across all keys
+            - "dict": a dict mapping Key -> duration_seconds
+            Defaults to "min".
 
     Returns:
         UUID: The id needed to remove the binding using the remove_binding function.
@@ -487,6 +536,10 @@ def bind_hotkey_hold(
         keys_to_hold_times=keys_to_hold_times,
         fire_when_hold=continue_fire_when_hold,
         max_delay=max_delay,
+        # NEW:
+        send_hold_duration=send_hold_duration,
+        hold_duration_kw=hold_duration_kw,
+        hold_duration_mode=hold_duration_mode,
     )
     for key in keys_to_hold_times:
         key.bindings[binding_id] = binding
